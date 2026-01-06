@@ -4,9 +4,7 @@ import torch
 import torch.nn as nn
 import random
 import warnings
-warnings.filterwarnings("ignore", message=".*Gym has been unmaintained.*")
 
-# 使用自定义 MAML 实现，替换 learn2learn
 from maml import MAML
 
 # 使用自定义数据集加载器，从本地加载数据
