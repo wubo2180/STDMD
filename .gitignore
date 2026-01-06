@@ -1,7 +1,7 @@
 # Byte-compiled / optimized / DLL files
 /data
 /figure
-
+/plot
 # 数据文件
 *.csv
 *.json  # 注意: 如果需要提交配置文件,请谨慎使用
