@@ -1,4 +1,4 @@
-# STDMD – Spatio-Temporal Decoupled Meta-learning for Dynamic Graph Node Prediction
+# STDMD: Spatio-Temporal Decoupled Meta-learning for Dynamic Graph Node Prediction
 
 This repository provides a reference implementation for the method described in the patent:
 

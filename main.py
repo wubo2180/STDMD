@@ -5,9 +5,18 @@ import torch.nn as nn
 import random
 import warnings
 warnings.filterwarnings("ignore", message=".*Gym has been unmaintained.*")
-import learn2learn as l2l
-from torch_geometric_temporal.dataset import ChickenpoxDatasetLoader,EnglandCovidDatasetLoader,PedalMeDatasetLoader,WikiMathsDatasetLoader,PemsBayDatasetLoader,WindmillOutputLargeDatasetLoader,WindmillOutputSmallDatasetLoader,MTMDatasetLoader,WindmillOutputMediumDatasetLoader,METRLADatasetLoader,MontevideoBusDatasetLoader
-from torch_geometric_temporal.signal import temporal_signal_split,StaticGraphTemporalSignal
+
+# 使用自定义 MAML 实现，替换 learn2learn
+from maml import MAML
+
+# 使用自定义数据集加载器，从本地加载数据
+from custom_dataset_loaders import (
+    EnglandCovidDatasetLoader,
+    PedalMeDatasetLoader, 
+    WikiMathsDatasetLoader,
+    temporal_signal_split,
+    StaticGraphTemporalSignal
+)
 from torch_geometric.utils import negative_sampling
 from  utils import *
 import torch.optim as optim
@@ -154,141 +163,151 @@ def eval(args, model, test_dataset):
     print("MSE: {:.4f}".format(cost.item()))
 
     # Convert predictions list to NumPy array
-    y_hat_numpy = np.array(y_hat_list)  # Shape: (time_steps, num_nodes, num_features)
+    # y_hat_numpy = np.array(y_hat_list)  # Shape: (time_steps, num_nodes, num_features)
 
-    # Select two connected nodes (adjust indices based on dataset)
-    node1, node2 = 0, 1  # Modify as needed
+    # # Select two connected nodes (adjust indices based on dataset)
+    # node1, node2 = 0, 1  # Modify as needed
 
-    # Extract actual values from test dataset
-    actual_node1 = [snapshot.y[node1].cpu().numpy() for snapshot in test_dataset][:100]
-    actual_node2 = [snapshot.y[node2].cpu().numpy() for snapshot in test_dataset][:100]
+    # # Extract actual values from test dataset
+    # actual_node1 = [snapshot.y[node1].cpu().numpy() for snapshot in test_dataset][:100]
+    # actual_node2 = [snapshot.y[node2].cpu().numpy() for snapshot in test_dataset][:100]
 
-    # # Convert to single feature array (select first feature)
-    # feature_index = 0
-    # actual_node1 = np.array([t[feature_index] for t in actual_node1])
-    # actual_node2 = np.array([t[feature_index] for t in actual_node2])
+    # # # Convert to single feature array (select first feature)
+    # # feature_index = 0
+    # # actual_node1 = np.array([t[feature_index] for t in actual_node1])
+    # # actual_node2 = np.array([t[feature_index] for t in actual_node2])
 
-    # Extract predicted values for the same nodes
-    predicted_node1 = y_hat_numpy[:100, node1]
-    predicted_node2 = y_hat_numpy[:100, node2]
+    # # Extract predicted values for the same nodes
+    # predicted_node1 = y_hat_numpy[:100, node1]
+    # predicted_node2 = y_hat_numpy[:100, node2]
 
-    # ==== Visualization: Compare Actual vs. Predicted ====
-    plt.figure(figsize=(12, 6))
+    # # ==== Visualization: Compare Actual vs. Predicted ====
+    # plt.figure(figsize=(12, 6))
 
-    # Node 1
-    plt.subplot(1, 2, 1)
-    plt.plot(actual_node1, label=f'Actual Node {node1}', marker='o', linestyle='dashed', color='blue')
-    plt.plot(predicted_node1, label=f'Predicted Node {node1}', marker='s', color='red')
-    plt.title(f"Node {node1} - Prediction vs Actual", fontsize=20)
-    plt.xlabel("Time Steps", fontsize=20)
-    plt.ylabel("Feature Value", fontsize=20)
-    plt.legend(fontsize=20)
-    plt.grid(True)
+    # # Node 1
+    # plt.subplot(1, 2, 1)
+    # plt.plot(actual_node1, label=f'Actual Node {node1}', marker='o', linestyle='dashed', color='blue')
+    # plt.plot(predicted_node1, label=f'Predicted Node {node1}', marker='s', color='red')
+    # plt.title(f"Node {node1} - Prediction vs Actual", fontsize=20)
+    # plt.xlabel("Time Steps", fontsize=20)
+    # plt.ylabel("Feature Value", fontsize=20)
+    # plt.legend(fontsize=20)
+    # plt.grid(True)
 
-    # Node 2
-    plt.subplot(1, 2, 2)
-    plt.plot(actual_node2, label=f'Actual Node {node2}', marker='o', linestyle='dashed', color='blue')
-    plt.plot(predicted_node2, label=f'Predicted Node {node2}', marker='s', color='red')
-    plt.title(f"Node {node2} - Prediction vs Actual", fontsize=20)
-    plt.xlabel("Time Steps", fontsize=20)
-    plt.ylabel("Feature Value", fontsize=20)
-    plt.legend(fontsize=20)
-    plt.grid(True)
+    # # Node 2
+    # plt.subplot(1, 2, 2)
+    # plt.plot(actual_node2, label=f'Actual Node {node2}', marker='o', linestyle='dashed', color='blue')
+    # plt.plot(predicted_node2, label=f'Predicted Node {node2}', marker='s', color='red')
+    # plt.title(f"Node {node2} - Prediction vs Actual", fontsize=20)
+    # plt.xlabel("Time Steps", fontsize=20)
+    # plt.ylabel("Feature Value", fontsize=20)
+    # plt.legend(fontsize=20)
+    # plt.grid(True)
 
-    # Adjust layout and show plot
-    plt.tight_layout()
-    plt.savefig("figure/STDMD_vis.pdf", dpi=300, bbox_inches='tight')
+    # # Adjust layout and show plot
+    # plt.tight_layout()
+    # plt.savefig("figure/STDMD_vis.pdf", dpi=300, bbox_inches='tight')
     
-    plt.show()
+    # plt.show()
     
-    # ========== Cluster Visualization ==========
-    method = "TSNE"  # Choose "TSNE" or "PCA"
+    # # ========== Cluster Visualization ==========
+    # method = "TSNE"  # Choose "TSNE" or "PCA"
     
-    # Extract embeddings for all time steps and nodes
-    # y_hat_numpy shape: (time_steps, num_nodes, num_features)
-    # We want to visualize across time for multiple nodes
+    # # Extract embeddings for all time steps and nodes
+    # # y_hat_numpy shape: (time_steps, num_nodes, num_features)
+    # # We want to visualize across time for multiple nodes
     
-    # Reshape to (time_steps * num_nodes, num_features) for clustering
-    num_time_steps = min(100, len(y_hat_numpy))
+    # # Reshape to (time_steps * num_nodes, num_features) for clustering
+    # num_time_steps = min(100, len(y_hat_numpy))
     
-    # Get all nodes' data across time
-    y_hat_reshaped = y_hat_numpy[:num_time_steps].reshape(-1, y_hat_numpy.shape[-1])  # (time*nodes, features)
-    actual_reshaped = np.array([snapshot.y.cpu().numpy() for snapshot in test_dataset[:num_time_steps]])
-    actual_reshaped = actual_reshaped.reshape(-1, actual_reshaped.shape[-1])  # (time*nodes, features)
+    # # Get all nodes' data across time
+    # y_hat_reshaped = y_hat_numpy[:num_time_steps].reshape(-1, y_hat_numpy.shape[-1])  # (time*nodes, features)
+    # actual_reshaped = np.array([snapshot.y.cpu().numpy() for snapshot in test_dataset[:num_time_steps]])
+    # actual_reshaped = actual_reshaped.reshape(-1, actual_reshaped.shape[-1])  # (time*nodes, features)
     
-    print(f"Data shapes for clustering: y_hat={y_hat_reshaped.shape}, actual={actual_reshaped.shape}")
+    # print(f"Data shapes for clustering: y_hat={y_hat_reshaped.shape}, actual={actual_reshaped.shape}")
     
-    # Check if we have enough features for dimensionality reduction
-    n_features = y_hat_reshaped.shape[1]
+    # # Check if we have enough features for dimensionality reduction
+    # n_features = y_hat_reshaped.shape[1]
     
-    if n_features == 1:
-        # If only 1 feature, create a simple 1D visualization
-        print("Only 1 feature detected, creating 1D visualization...")
-        plt.figure(figsize=(12, 6))
+    # if n_features == 1:
+    #     # If only 1 feature, create a simple 1D visualization
+    #     print("Only 1 feature detected, creating 1D visualization...")
+    #     plt.figure(figsize=(12, 6))
         
-        # Sample some points for visualization
-        sample_size = min(200, len(y_hat_reshaped))
-        indices = np.random.choice(len(y_hat_reshaped), sample_size, replace=False)
+    #     # Sample some points for visualization
+    #     sample_size = min(200, len(y_hat_reshaped))
+    #     indices = np.random.choice(len(y_hat_reshaped), sample_size, replace=False)
         
-        plt.scatter(actual_reshaped[indices], np.zeros_like(actual_reshaped[indices]), 
-                   c='blue', label="Actual Values", alpha=0.6, edgecolors='k', s=100)
-        plt.scatter(y_hat_reshaped[indices], np.ones_like(y_hat_reshaped[indices]) * 0.1, 
-                   c='red', label="Predicted Values", alpha=0.6, edgecolors='k', s=100)
+    #     plt.scatter(actual_reshaped[indices], np.zeros_like(actual_reshaped[indices]), 
+    #                c='blue', label="Actual Values", alpha=0.6, edgecolors='k', s=100)
+    #     plt.scatter(y_hat_reshaped[indices], np.ones_like(y_hat_reshaped[indices]) * 0.1, 
+    #                c='red', label="Predicted Values", alpha=0.6, edgecolors='k', s=100)
         
-        plt.title("Distribution Comparison: Actual vs Predicted", fontsize=16)
-        plt.xlabel("Feature Value", fontsize=14)
-        plt.yticks([0, 0.1], ['Actual', 'Predicted'])
-        plt.legend(fontsize=12)
-        plt.grid(True, axis='x')
+    #     plt.title("Distribution Comparison: Actual vs Predicted", fontsize=16)
+    #     plt.xlabel("Feature Value", fontsize=14)
+    #     plt.yticks([0, 0.1], ['Actual', 'Predicted'])
+    #     plt.legend(fontsize=12)
+    #     plt.grid(True, axis='x')
         
-    else:
-        # If we have multiple features, use t-SNE or PCA
-        if method == "TSNE":
-            # Adjust perplexity based on sample size
-            perplexity = min(30, len(y_hat_reshaped) // 5)
-            reducer = TSNE(n_components=2, random_state=42, perplexity=perplexity)
-        else:
-            reducer = PCA(n_components=2)
+    # else:
+    #     # If we have multiple features, use t-SNE or PCA
+    #     if method == "TSNE":
+    #         # Adjust perplexity based on sample size
+    #         perplexity = min(30, len(y_hat_reshaped) // 5)
+    #         reducer = TSNE(n_components=2, random_state=42, perplexity=perplexity)
+    #     else:
+    #         reducer = PCA(n_components=2)
         
-        print(f"Applying {method} with n_components=2...")
-        actual_embedded = reducer.fit_transform(actual_reshaped)
-        predicted_embedded = reducer.fit_transform(y_hat_reshaped)
+    #     print(f"Applying {method} with n_components=2...")
+    #     actual_embedded = reducer.fit_transform(actual_reshaped)
+    #     predicted_embedded = reducer.fit_transform(y_hat_reshaped)
 
-        # Create 2D visualization
-        plt.figure(figsize=(10, 6))
+    #     # Create 2D visualization
+    #     plt.figure(figsize=(10, 6))
 
-        plt.scatter(actual_embedded[:, 0], actual_embedded[:, 1], 
-                   c='blue', label="Actual", alpha=0.6, edgecolors='k')
-        plt.scatter(predicted_embedded[:, 0], predicted_embedded[:, 1], 
-                   c='red', label="Predicted", alpha=0.6, edgecolors='k')
+    #     plt.scatter(actual_embedded[:, 0], actual_embedded[:, 1], 
+    #                c='blue', label="Actual", alpha=0.6, edgecolors='k')
+    #     plt.scatter(predicted_embedded[:, 0], predicted_embedded[:, 1], 
+    #                c='red', label="Predicted", alpha=0.6, edgecolors='k')
 
-        plt.title(f"Cluster Visualization ({method}): Actual vs. Predicted", fontsize=16)
-        plt.xlabel("Dimension 1", fontsize=14)
-        plt.ylabel("Dimension 2", fontsize=14)
-        plt.legend(fontsize=12)
-        plt.grid(True)
+    #     plt.title(f"Cluster Visualization ({method}): Actual vs. Predicted", fontsize=16)
+    #     plt.xlabel("Dimension 1", fontsize=14)
+    #     plt.ylabel("Dimension 2", fontsize=14)
+    #     plt.legend(fontsize=12)
+    #     plt.grid(True)
 
-    # Save the figure
-    plt.savefig("figure/STDMD_cluster_vis.pdf", dpi=300, bbox_inches='tight')
-    plt.show()
+    # # Save the figure
+    # plt.savefig("figure/STDMD_cluster_vis.pdf", dpi=300, bbox_inches='tight')
+    # plt.show()
 def main(args):
+    # 使用自定义数据加载器从本地加载数据
     if args.dataset == 'EnglandCovid':
         loader = EnglandCovidDatasetLoader()
     elif args.dataset == 'PedalMe':
         loader = PedalMeDatasetLoader()
     elif args.dataset == 'WikiMaths':
         loader = WikiMathsDatasetLoader()
-    elif args.dataset == 'WindmillOutputLarge':
-        loader = MontevideoBusDatasetLoader()
+    else:
+        raise ValueError(f"不支持的数据集: {args.dataset}. 请选择: EnglandCovid, PedalMe, WikiMaths")
 
     dataset = loader.get_dataset()
+    
+    # 调试信息：检查dataset类型
+    print(f"\n调试信息:")
+    print(f"  dataset 类型: {type(dataset)}")
+    print(f"  dataset 模块: {type(dataset).__module__}")
+    print(f"  是否有__len__: {hasattr(dataset, '__len__')}")
+    if hasattr(dataset, '_num_timesteps'):
+        print(f"  _num_timesteps: {dataset._num_timesteps}")
+    
     train_dataset, test_dataset = temporal_signal_split(dataset, train_ratio=args.train_ratio)
 
     train_dataset, args.num_nodes, args.input_dim = data_preprocessing(train_dataset,args)
 
     # print(node)
     model = metaDynamicGCN(args).to(device)
-    maml = l2l.algorithms.MAML(model, lr=args.update_lr)
+    maml = MAML(model, lr=args.update_lr)
     optimizer = optim.Adam(maml.parameters(), lr=args.meta_lr, weight_decay=args.decay)
     criterion_space = nn.BCEWithLogitsLoss()
     criterion_temporal = nn.MSELoss(reduction='mean')
@@ -299,7 +318,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, help='epoch number', default=50)
+    parser.add_argument('--epochs', type=int, help='epoch number', default=100)
     parser.add_argument('--num_nodes', type=int, help='number of nodes')
     parser.add_argument('--k_spt', type=int, help='k shot for support set', default=100)
     parser.add_argument('--k_qry', type=int, help='k shot for query set', default=100)
@@ -317,7 +336,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_workers", default=0, type=int, required=False, help="num of workers")
 
     parser.add_argument('--seed', type=int, default=42, help='Random seed.')
-    parser.add_argument('--dataset', type=str, default='WikiMaths', help='dataset.')
+    parser.add_argument('--dataset', type=str, default='EnglandCovid', help='dataset. PedalMe/EnglandCovid/WikiMaths')
     parser.add_argument('--device', type=int, default=0, help='which gpu to use if any (default: 0)')
     args = parser.parse_args()
     
